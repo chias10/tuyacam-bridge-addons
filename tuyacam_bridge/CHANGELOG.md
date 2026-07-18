@@ -1,5 +1,14 @@
 # Changelog — TuyaCam RTSP Bridge
 
+## 3.2.2
+- **Confirmado en producción**: el fix del watchdog de 3.2.1 funciona
+  — stream estable, sin reconexiones, logs de "Stream activo" cada 30s.
+- Fix de bitrate: en modo `-c copy` el campo `bitrate=` de `-progress`
+  casi siempre viene como `N/A` (ffmpeg no lleva esa cuenta al no
+  recodificar), así que `tuya_bitrate_kbps` se quedaba fijo en 0.
+  Ahora se calcula directamente a partir de `total_size` (bytes
+  acumulados entre lecturas / tiempo transcurrido), que sí es confiable.
+
 ## 3.2.1
 - **Fix crítico del watchdog**: usaba `ffmpeg -stats`, que escribe su
   progreso con retorno de carro (`\r`, sobreescribe la misma línea) en

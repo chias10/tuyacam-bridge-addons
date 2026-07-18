@@ -1,5 +1,5 @@
 name: "TuyaCam RTSP Bridge"
-version: "3.2.1"
+version: "3.2.2"
 slug: "tuyacam_bridge"
 description: >-
   Eliminates redundant Tuya cloud sessions by maintaining a single

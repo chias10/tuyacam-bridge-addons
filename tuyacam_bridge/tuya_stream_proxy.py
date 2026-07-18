@@ -454,6 +454,8 @@ class FfmpegBridge:
         self._frame_count = 0
         self._last_frame_at = time.time()
         self._last_error_class = "unknown"
+        self._last_size_bytes = 0
+        self._last_size_check_at = 0.0
         run_started_at = time.time()
 
         self._proc = await asyncio.create_subprocess_exec(
@@ -551,11 +553,24 @@ class FfmpegBridge:
                         self.metrics.add_frames(self.camera.name, delta)
                         last_reported_frame = self._frame_count
 
-                elif key == "bitrate":
-                    # formato típico: "1234.5kbits/s" o "N/A"
-                    m = re.match(r"([\d.]+)", value)
-                    if m:
-                        self.metrics.set_bitrate(self.camera.name, float(m.group(1)))
+                elif key == "total_size":
+                    # En modo "-c copy" el campo bitrate= de ffmpeg casi
+                    # siempre viene como "N/A" (no recodifica, no lleva
+                    # esa cuenta). Lo calculamos nosotros: bytes
+                    # acumulados entre lecturas / tiempo transcurrido.
+                    try:
+                        size_bytes = int(value)
+                    except ValueError:
+                        continue
+                    now = time.time()
+                    if self._last_size_check_at:
+                        dt = now - self._last_size_check_at
+                        dbytes = size_bytes - self._last_size_bytes
+                        if dt > 0 and dbytes >= 0:
+                            kbps = (dbytes * 8 / 1000) / dt
+                            self.metrics.set_bitrate(self.camera.name, kbps)
+                    self._last_size_bytes = size_bytes
+                    self._last_size_check_at = now
 
                 elif key == "progress":
                     now = time.time()
