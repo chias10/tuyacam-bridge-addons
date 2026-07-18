@@ -1,5 +1,18 @@
 # Changelog — TuyaCam RTSP Bridge
 
+## 3.2.1
+- **Fix crítico del watchdog**: usaba `ffmpeg -stats`, que escribe su
+  progreso con retorno de carro (`\r`, sobreescribe la misma línea) en
+  vez de salto de línea real. Nuestro parser línea-por-línea nunca
+  detectaba esas actualizaciones, así que el watchdog interpretaba
+  "sin frames" y reiniciaba el stream **siempre**, exactamente a los
+  `frame_timeout` segundos, sin importar si el stream estaba sano.
+  Reemplazado por `-progress pipe:1` (el mecanismo de ffmpeg pensado
+  para monitoreo programático: `clave=valor` con salto de línea real
+  garantizado). El conteo de frames, bitrate, y el resumen periódico
+  de "frames/s" ahora vienen de `stdout` (`-progress`) en vez de
+  `stderr` (`-stats`); `stderr` queda solo para warnings/errores reales.
+
 ## 3.2.0
 - **Selección de perfil de stream por cámara** (`stream_type`): `0`
   para el stream principal (HD, default) o `1` para el sub-stream

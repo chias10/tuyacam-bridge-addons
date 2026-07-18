@@ -434,7 +434,13 @@ class FfmpegBridge:
             "ffmpeg",
             "-nostdin",
             "-loglevel", "warning",
-            "-stats",
+            # -progress pipe:1 en vez de -stats: escribe clave=valor con
+            # saltos de línea REALES a stdout, pensado para monitoreo
+            # programático. -stats usa \r (sobreescribe la misma línea),
+            # que un lector basado en readline()/\n nunca detecta —
+            # eso hacía que el watchdog pensara "sin frames" siempre,
+            # sin importar si el stream estaba sano.
+            "-progress", "pipe:1",
             "-fflags", "nobuffer",
             "-rtsp_transport", "tcp",
             "-timeout", "8000000",
@@ -451,10 +457,13 @@ class FfmpegBridge:
         run_started_at = time.time()
 
         self._proc = await asyncio.create_subprocess_exec(
-            *cmd, stderr=asyncio.subprocess.PIPE
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         self.metrics.set_stream_up(self.camera.name, True)
 
+        stdout_task = asyncio.create_task(self._watch_stdout(self._proc))
         stderr_task = asyncio.create_task(self._watch_stderr(self._proc))
         watchdog_task = asyncio.create_task(self._watchdog())
         healthcheck_task = asyncio.create_task(self._healthcheck_loop())
@@ -476,6 +485,7 @@ class FfmpegBridge:
 
         for t in pending:
             t.cancel()
+        stdout_task.cancel()
         stderr_task.cancel()
         if self._proc.returncode is None:
             self._proc.terminate()
@@ -515,30 +525,39 @@ class FfmpegBridge:
             except Exception as err:
                 _LOGGER.warning("[%s] No se pudo renovar el token: %s", self.camera.name, err)
 
-    async def _watch_stderr(self, proc: asyncio.subprocess.Process):
+    async def _watch_stdout(self, proc: asyncio.subprocess.Process):
+        """Lee el output de -progress pipe:1: líneas clave=valor con
+        saltos de línea reales garantizados. Actualiza el reloj del
+        watchdog, el conteo de frames, el bitrate, y loguea un resumen
+        periódico de frames/s."""
         last_stats_log = time.time()
         frames_at_last_log = 0
         last_reported_frame = 0
         try:
-            async for raw_line in proc.stderr:
+            async for raw_line in proc.stdout:
                 line = raw_line.decode(errors="ignore").strip()
-                if not line:
+                if not line or "=" not in line:
                     continue
+                key, _, value = line.partition("=")
 
-                if "frame=" in line:
+                if key == "frame":
                     self._last_frame_at = time.time()
-                    match = re.search(r"frame=\s*(\d+)", line)
-                    if match:
-                        self._frame_count = int(match.group(1))
-                        delta = self._frame_count - last_reported_frame
-                        if delta > 0:
-                            self.metrics.add_frames(self.camera.name, delta)
-                            last_reported_frame = self._frame_count
+                    try:
+                        self._frame_count = int(value)
+                    except ValueError:
+                        continue
+                    delta = self._frame_count - last_reported_frame
+                    if delta > 0:
+                        self.metrics.add_frames(self.camera.name, delta)
+                        last_reported_frame = self._frame_count
 
-                    bitrate_match = re.search(r"bitrate=\s*([\d.]+)\s*kbits/s", line)
-                    if bitrate_match:
-                        self.metrics.set_bitrate(self.camera.name, float(bitrate_match.group(1)))
+                elif key == "bitrate":
+                    # formato típico: "1234.5kbits/s" o "N/A"
+                    m = re.match(r"([\d.]+)", value)
+                    if m:
+                        self.metrics.set_bitrate(self.camera.name, float(m.group(1)))
 
+                elif key == "progress":
                     now = time.time()
                     if now - last_stats_log >= self.cfg.stats_log_interval:
                         elapsed = now - last_stats_log
@@ -550,6 +569,16 @@ class FfmpegBridge:
                         )
                         last_stats_log = now
                         frames_at_last_log = self._frame_count
+        except asyncio.CancelledError:
+            pass
+
+    async def _watch_stderr(self, proc: asyncio.subprocess.Process):
+        """Solo warnings/errores reales de ffmpeg (ya no parsea frames
+        aquí, eso lo hace _watch_stdout vía -progress)."""
+        try:
+            async for raw_line in proc.stderr:
+                line = raw_line.decode(errors="ignore").strip()
+                if not line:
                     continue
 
                 reason_class = _classify_error(line)
