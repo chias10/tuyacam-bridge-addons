@@ -1,0 +1,40 @@
+name: "TuyaCam RTSP Bridge"
+version: "3.0.0"
+slug: "tuyacam_bridge"
+description: >-
+  Eliminates redundant Tuya cloud sessions by maintaining a single
+  authenticated connection and re-broadcasting your camera's native
+  RTSP feed to a stable local endpoint. Built for multi-consumer
+  setups — Home Assistant, Frigate, VLC, and Alexa can all watch
+  simultaneously without triggering Tuya's session limits or
+  throttling.
+url: "https://github.com/chia10/tuyacam-bridge-addons/tree/main/tuyacam_bridge"
+image: "ghcr.io/chia10/{arch}-addon-tuyacam-bridge"
+arch:
+  - amd64
+  - aarch64
+startup: services
+boot: auto
+init: false
+hassio_api: false
+homeassistant_api: false
+ports:
+  8554/tcp: 8554
+  8889/tcp: 8889
+  9101/tcp: 9101
+ports_description:
+  8554/tcp: "Local RTSP (camera stream)"
+  8889/tcp: "Local WebRTC (optional)"
+  9101/tcp: "Prometheus metrics (/metrics)"
+options:
+  tuya_base_url: "https://openapi.tuyaus.com"
+  tuya_client_id: ""
+  tuya_client_secret: ""
+  tuya_device_id: ""
+  rtsp_path: "tuya_cam"
+schema:
+  tuya_base_url: "url"
+  tuya_client_id: "str"
+  tuya_client_secret: "password"
+  tuya_device_id: "str"
+  rtsp_path: "str"
