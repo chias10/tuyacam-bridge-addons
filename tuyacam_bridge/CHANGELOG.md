@@ -1,4 +1,67 @@
-# Changelog — TuyaCam Bridge
+# Changelog — TuyaCam RTSP Bridge
+
+## 3.2.0
+- **Selección de perfil de stream por cámara** (`stream_type`): `0`
+  para el stream principal (HD, default) o `1` para el sub-stream
+  (SD) — útil para cámaras que solo necesitas para detección de
+  movimiento, para ahorrar ancho de banda. Se envía como parámetro en
+  el `allocate` RTSP a Tuya. La resolución/bitrate real depende del
+  modelo y firmware de cada cámara.
+
+## 3.1.0
+- **Soporte multi-cámara.** La opción `cameras` reemplaza a
+  `tuya_device_id`/`rtsp_path`: ahora es una lista de
+  `{name, device_id}`, una por cámara Tuya.
+- **Separación de config en dos niveles**: `GlobalConfig` (credenciales,
+  base URL, métricas, timeouts por defecto — compartido) y
+  `CameraConfig` (nombre, device_id, ruta RTSP — por cámara).
+- **Una sola sesión OAuth compartida**, un `FfmpegBridge` independiente
+  por cámara — cada una con su propio backoff/circuit breaker; si una
+  cámara falla, las demás no se ven afectadas.
+- **Métricas con label `camera`**: `tuya_frames_total{camera="..."}`,
+  `tuya_restarts_total{camera="..."}`, `tuya_bitrate_kbps{camera="..."}`,
+  `tuya_stream_up{camera="..."}` — graficables por separado.
+- `mediamtx.yml` pasa a ser estático (usa el path especial
+  `all_others`), ya no hace falta generarlo por template por cámara.
+- Compatibilidad: si no hay `cameras` configurado pero sí
+  `TUYA_DEVICE_ID` (configs de versiones anteriores), se sintetiza
+  automáticamente una lista de una sola cámara.
+
+## 3.0.0
+- **Backoff exponencial**: los reintentos ya no son fijos, siguen la
+  secuencia 1s → 2s → 4s → 8s → 16s → 30s (cap), y se resetean a 0
+  cuando un ciclo corre "sano" por más de 60s.
+- **Circuit breaker**: tras 50 errores seguidos, pausa 10 minutos
+  antes de volver a intentar, para no bombardear a Tuya si está caída.
+- **Métricas Prometheus** en `:9101/metrics`: `tuya_frames_total`,
+  `tuya_restarts_total`, `tuya_token_refresh_total`,
+  `tuya_uptime_seconds`, `tuya_bitrate_kbps`, `tuya_stream_up`.
+- **Logs de eventos en JSON** embebido (ej. `{"event": "token_refreshed",
+  "expires_in": 7200, "elapsed_ms": 210}`), más fácil de parsear que
+  texto libre.
+- **Detección de bitrate**: se parsea `bitrate=` de la salida de
+  ffmpeg y se expone como métrica, para notar si Tuya baja la calidad.
+- **Clasificación de errores** (401 / 404 / timeout / reset / sin
+  frames) para logs y métricas. La acción de recuperación converge en
+  "pedir URL nueva + reiniciar ffmpeg" para casi todos los casos,
+  excepto 401 que además fuerza una renovación de token.
+- **Token persistido en disco** (`/data/tuya_token_cache.json`): si el
+  add-on se reinicia y el token cacheado sigue vigente, se reusa en
+  vez de autenticar desde cero.
+
+## 2.1.0
+- **Reconexión robusta ante cortes de Tuya** (ej. si el RTSP se cae a
+  las 12h): si ffmpeg reporta un posible 401, se fuerza la renovación
+  del token antes de pedir la próxima URL — sin reiniciar el add-on.
+- **Watchdog de frames**: si no llegan frames nuevos por más de 10s
+  (configurable), se mata ffmpeg y se reinicia el ciclo automáticamente.
+- **Health check activo**: cada 15s (configurable) se manda un OPTIONS
+  RTSP al stream local para confirmar que sigue respondiendo; si no,
+  se reinicia el ciclo.
+- **Logs ampliados**: se distingue "token obtenido" (primera vez) de
+  "token renovado", se loguea el motivo de cada reconexión, y se
+  reporta un resumen de frames/s cada 30s mientras el stream está
+  activo.
 
 ## 2.0.0
 - **Cambio de arquitectura**: se descubrió (gracias a pruebas directas

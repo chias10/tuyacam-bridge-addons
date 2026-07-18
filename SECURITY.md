@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Only the latest published version of TuyaCam Bridge receives security
+Only the latest published version of TuyaCam RTSP Bridge receives security
 fixes. Please update to the latest version before reporting an issue.
 
 ## Known Security Considerations
@@ -26,7 +26,7 @@ fixes. Please update to the latest version before reporting an issue.
 If you find a security issue, please report it privately rather than
 opening a public GitHub issue:
 
-- Open a [GitHub Security Advisory](https://github.com/chia10/tuya-stream-proxy-addons/security/advisories/new)
+- Open a [GitHub Security Advisory](https://github.com/chias10/tuyacam-bridge-addons/security/advisories/new)
   for this repository, **or**
 - Email: aziel.cuevasf@gmail.com
 

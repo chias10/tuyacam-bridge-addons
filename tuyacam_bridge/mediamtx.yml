@@ -1,0 +1,11 @@
+rtspAddress: :8554
+webrtcAddress: :8889
+
+paths:
+  # "all_others" es un path especial de mediamtx: aplica esta config a
+  # cualquier ruta que llegue por push y no esté declarada
+  # explícitamente. Así no hace falta listar cada cámara a mano —
+  # tuya_stream_proxy.py hace push a rtsp://127.0.0.1:8554/<nombre> por
+  # cada cámara configurada, y mediamtx las acepta todas.
+  all_others:
+    source: publisher

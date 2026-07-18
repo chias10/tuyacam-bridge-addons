@@ -1,10 +1,10 @@
-# TuyaCam Bridge
+# TuyaCam RTSP Bridge
 
 **One cloud session. Every local client.**
 
 Tuya's camera API wasn't built for multiple simultaneous viewers —
 each client that connects opens its own cloud session, and Tuya
-throttles or drops connections when too many pile up. TuyaCam Bridge
+throttles or drops connections when too many pile up. TuyaCam RTSP Bridge
 solves this at the source: it opens **one** authenticated session with
 Tuya's cloud, pulls the native RTSP stream, and re-serves it locally
 over a standard RTSP endpoint that any number of local clients can
@@ -26,7 +26,7 @@ RTSP-compatible client
 > responsible for complying with Tuya's Developer Platform Service
 > Agreement and any privacy/recording laws that apply to your camera's
 > field of view. Provided "as is", with no warranty — see the
-> [full disclaimer and LICENSE](https://github.com/chia10/tuya-stream-proxy-addons)
+> [full disclaimer and LICENSE](https://github.com/chias10/tuyacam-bridge-addons)
 > in the repository.
 
 ## Before installing
@@ -47,24 +47,52 @@ which isn't suitable for sustained playback).
 | Option | Description |
 |---|---|
 | `tuya_base_url` | Tuya's regional API endpoint (`https://openapi.tuyaus.com` for US, `https://openapi.tuyaeu.com` for EU, etc.) |
-| `tuya_client_id` | Client ID from your Tuya IoT project |
-| `tuya_client_secret` | Client Secret from your Tuya IoT project |
-| `tuya_device_id` | The camera's device ID in Tuya |
-| `rtsp_path` | Name of the local RTSP path, e.g. `tuya_cam` |
+| `tuya_client_id` | Client ID from your Tuya IoT project (shared by all cameras) |
+| `tuya_client_secret` | Client Secret from your Tuya IoT project (shared by all cameras) |
+| `cameras` | A list of cameras, each with a `name` (used as the local RTSP path), a `device_id`, and an optional `stream_type` |
+
+`stream_type` picks which of the camera's encoded profiles to pull:
+- `0` (default): main stream, typically HD.
+- `1`: sub-stream, typically SD — useful for cameras you mostly want
+  for motion detection rather than high-res viewing, to save bandwidth.
+
+Actual resolution/bitrate for each depends on your camera's model and
+firmware.
+
+Example with three cameras, one on the sub-stream to save bandwidth:
+
+```yaml
+cameras:
+  - name: entrada
+    device_id: "abc123"
+    stream_type: 0
+  - name: cochera
+    device_id: "def456"
+    stream_type: 0
+  - name: patio
+    device_id: "ghi789"
+    stream_type: 1
+```
 
 ## Usage
 
-Once running, the stream is available at:
+Once running, each camera's stream is available at:
 
 ```
-rtsp://<your-ha-ip>:8554/<rtsp_path>
+rtsp://<your-ha-ip>:8554/<camera-name>
 ```
 
-- **Home Assistant**: use a generic RTSP camera pointing to that URL.
-- **Frigate**: add it as a normal input in `frigate.yml`.
+For the example above: `rtsp://<your-ha-ip>:8554/entrada`,
+`.../cochera`, `.../patio`.
+
+- **Home Assistant**: use a generic RTSP camera pointing to that URL,
+  one per camera.
+- **Frigate**: add each one as a normal input in `frigate.yml`.
 - **VLC**: open it directly via "Open Network Stream".
-- **Alexa**: if that camera is already exposed in HA via the Smart
-  Home skill, it inherits this stream automatically.
+- **Alexa**: if a camera is already exposed in HA via the Smart Home
+  skill, it inherits its stream automatically.
+- **Metrics**: `http://<your-ha-ip>:9101/metrics` (Prometheus format),
+  with a `camera` label on every per-camera metric.
 
 ## Troubleshooting
 

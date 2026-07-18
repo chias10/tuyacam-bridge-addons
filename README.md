@@ -1,6 +1,6 @@
-# TuyaCam Bridge — Home Assistant Add-on
+# TuyaCam RTSP Bridge — Home Assistant Add-on
 
-[![Build and publish](https://github.com/chia10/tuya-stream-proxy-addons/actions/workflows/build.yml/badge.svg)](https://github.com/chia10/tuya-stream-proxy-addons/actions/workflows/build.yml)
+[![Build and publish](https://github.com/chias10/tuyacam-bridge-addons/actions/workflows/build.yml/badge.svg)](https://github.com/chias10/tuyacam-bridge-addons/actions/workflows/build.yml)
 
 Keeps a single session with the Tuya cloud and republishes a stable
 local native RTSP stream, so Home Assistant, Frigate, VLC, and Alexa
@@ -11,7 +11,7 @@ session against Tuya.
 
 Tuya's camera API wasn't built for multiple simultaneous viewers —
 each client that connects opens its own cloud session, and Tuya
-throttles or drops connections when too many pile up. TuyaCam Bridge
+throttles or drops connections when too many pile up. TuyaCam RTSP Bridge
 solves this at the source: it opens **one** authenticated session with
 Tuya's cloud, pulls the native RTSP stream, and re-serves it locally
 over a standard RTSP endpoint that any number of local clients can
@@ -20,6 +20,25 @@ Home Assistant, and a VLC preview all try to watch at once.
 
 **Built for:** Home Assistant · Frigate · VLC · Alexa Smart Home · any
 RTSP-compatible client
+
+```
+                      Tuya Cloud
+                          │
+                    OAuth + RTSP
+                          │
+                  TuyaCam RTSP Bridge
+                          │
+          ┌───────────────┼───────────────┐
+          │                │                │
+       Frigate             HA              VLC
+```
+
+| Without Bridge | With Bridge |
+|---|---|
+| Multiple cloud sessions (one per client) | One cloud session, shared locally |
+| Random disconnects when clients pile up | Stable, self-healing local stream |
+| Every app authenticates against Tuya | Single authentication, done once |
+| High load on Tuya's cloud | One RTSP relay, unlimited local viewers |
 
 ## Disclaimer
 
@@ -78,9 +97,9 @@ RTSP-compatible client
    Repositories**.
 2. Add this URL:
    ```
-   https://github.com/chia10/tuya-stream-proxy-addons
+   https://github.com/chias10/tuyacam-bridge-addons
    ```
-3. Find **"TuyaCam Bridge"** in the store (a new section appears
+3. Find **"TuyaCam RTSP Bridge"** in the store (a new section appears
    after adding the repository) and install it.
 4. Configure it with your Tuya IoT credentials (see
    [DOCS.md](tuyacam_bridge/DOCS.md)) and start it.
@@ -89,7 +108,16 @@ RTSP-compatible client
 
 | Add-on | Description |
 |---|---|
-| [TuyaCam Bridge](tuyacam_bridge) | Stable local RTSP from a Tuya camera |
+| [TuyaCam RTSP Bridge](tuyacam_bridge) | Stable local RTSP from a Tuya camera |
+
+## Roadmap
+
+- [x] Multiple cameras (one add-on instance, several Tuya devices)
+- [ ] HTTPS support for the metrics endpoint
+- [ ] Authentication for the local RTSP stream
+- [x] Metrics (Prometheus, `:9101/metrics`)
+- [ ] WebRTC output
+- [ ] go2rtc backend option (alongside mediamtx)
 
 ## Contributing
 

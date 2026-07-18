@@ -7,7 +7,8 @@ RUN apk add --no-cache \
         py3-pip \
         ffmpeg \
         curl \
-        tar
+        tar \
+        jq
 
 # --- Dependencias Python ------------------------------------------------
 RUN pip install --no-cache-dir --break-system-packages aiohttp
@@ -28,7 +29,7 @@ RUN set -e; \
 
 # --- Archivos del add-on -------------------------------------------------
 COPY tuya_stream_proxy.py /opt/tuya_stream_proxy.py
-COPY mediamtx.yml.tpl /opt/mediamtx.yml.tpl
+COPY mediamtx.yml /opt/mediamtx.yml
 COPY run.sh /
 RUN chmod a+x /run.sh
 

@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Editores / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker / build
+*.log
+
+# Secretos locales (nunca deben subirse)
+*.env
+tuya_proxy.env
+.env.local
