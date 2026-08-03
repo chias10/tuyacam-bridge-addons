@@ -1,5 +1,5 @@
 name: "Tuya + Meari Cam Bridge RTSP"
-version: "3.3.0"
+version: "3.3.1"
 slug: "tuyacam_bridge"
 description: >-
   Eliminates redundant Tuya cloud sessions by maintaining a single

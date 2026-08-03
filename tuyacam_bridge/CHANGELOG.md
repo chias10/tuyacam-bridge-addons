@@ -1,3 +1,7 @@
+## 3.3.1
+
+- Fix: el launcher de Meari terminaba de inmediato (bug de wait en pipeline) y causaba reinicios en loop.
+
 ## 3.3.0
 
 - **Nuevo: cámaras Meari / CloudEdge** (ZUMIMALL, Arenti, Cloudedge, etc.) vía

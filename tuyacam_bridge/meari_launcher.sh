@@ -32,7 +32,9 @@ RTSP_HOST="127.0.0.1"
 RTSP_PORT="8554"
 
 # Un loop por cámara (auto-reconexión), en paralelo.
-echo "$MEARI_JSON" | jq -c '.[]' | while read -r cam; do
+# OJO: se usa process substitution (no 'jq | while') para que los procesos en
+# background sean hijos de ESTE shell y el 'wait' final los espere de verdad.
+while read -r cam; do
   NAME=$(echo "$cam"   | jq -r '.name')
   DID=$(echo "$cam"    | jq -r '.did')
   SUF=$(echo "$cam"    | jq -r '.suffix')
@@ -51,6 +53,6 @@ echo "$MEARI_JSON" | jq -c '.[]' | while read -r cam; do
       sleep 3
     done
   ) &
-done
+done < <(echo "$MEARI_JSON" | jq -c '.[]')
 
 wait
