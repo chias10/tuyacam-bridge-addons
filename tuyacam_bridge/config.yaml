@@ -1,13 +1,13 @@
-name: "TuyaCam RTSP Bridge"
-version: "3.2.2"
+name: "Tuya + Meari Cam Bridge RTSP"
+version: "3.3.0"
 slug: "tuyacam_bridge"
 description: >-
   Eliminates redundant Tuya cloud sessions by maintaining a single
   authenticated connection and re-broadcasting your camera's native
-  RTSP feed to a stable local endpoint. Built for multi-consumer
-  setups — Home Assistant, Frigate, VLC, and Alexa can all watch
-  simultaneously without triggering Tuya's session limits or
-  throttling.
+  RTSP feed to a stable local endpoint. Now also bridges Meari /
+  CloudEdge cameras (ZUMIMALL, Arenti, etc.) over P2P (PPCS/Kalay).
+  Built for multi-consumer setups — Home Assistant, Frigate, VLC, and
+  Alexa can all watch simultaneously.
 url: "https://github.com/chias10/tuyacam-bridge-addons/tree/main/tuyacam_bridge"
 image: "ghcr.io/chias10/{arch}-addon-tuyacam-bridge"
 arch:
@@ -34,11 +34,20 @@ options:
     - name: "tuya_cam"
       device_id: ""
       stream_type: 0
+  meari_cameras: []
 schema:
   tuya_base_url: "url"
-  tuya_client_id: "str"
-  tuya_client_secret: "password"
+  tuya_client_id: "str?"
+  tuya_client_secret: "password?"
   cameras:
     - name: "str"
       device_id: "str"
       stream_type: "int(0,1)"
+  meari_cameras:
+    - name: "str"
+      did: "str"
+      suffix: "str"
+      hostkey: "password"
+      initstring: "password"
+      licenceid: "str"
+      stream: "int(0,1)?"

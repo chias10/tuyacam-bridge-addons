@@ -5,23 +5,23 @@ TUYA_BASE_URL=$(bashio::config 'tuya_base_url')
 TUYA_CLIENT_ID=$(bashio::config 'tuya_client_id')
 TUYA_CLIENT_SECRET=$(bashio::config 'tuya_client_secret')
 
-if [ -z "$TUYA_CLIENT_ID" ] || [ -z "$TUYA_CLIENT_SECRET" ]; then
-    bashio::log.fatal "Faltan tuya_client_id / tuya_client_secret en la configuración del add-on"
+# Listas de cámaras (objetos/arrays -> se leen con jq de options.json)
+CAMERAS_JSON=$(jq -c '.cameras // []' /data/options.json)
+MEARI_JSON=$(jq -c '.meari_cameras // []' /data/options.json)
+TUYA_COUNT=$(echo "$CAMERAS_JSON" | jq 'length')
+MEARI_COUNT=$(echo "$MEARI_JSON" | jq 'length')
+
+if [ "$TUYA_COUNT" = "0" ] && [ "$MEARI_COUNT" = "0" ]; then
+    bashio::log.fatal "No hay cámaras configuradas en 'cameras' ni 'meari_cameras'"
     exit 1
 fi
 
-# La lista de cámaras es un objeto/array, así que se extrae directo de
-# options.json con jq en vez de bashio::config (pensado para valores
-# simples). Cada elemento: {"name": "...", "device_id": "..."}.
-CAMERAS_JSON=$(jq -c '.cameras' /data/options.json)
-
-if [ "$CAMERAS_JSON" = "null" ] || [ "$CAMERAS_JSON" = "[]" ]; then
-    bashio::log.fatal "No hay ninguna cámara configurada en 'cameras'"
+if [ "$TUYA_COUNT" != "0" ] && { [ -z "$TUYA_CLIENT_ID" ] || [ -z "$TUYA_CLIENT_SECRET" ]; }; then
+    bashio::log.fatal "Hay cámaras Tuya pero faltan tuya_client_id / tuya_client_secret"
     exit 1
 fi
 
-CAMERA_COUNT=$(echo "$CAMERAS_JSON" | jq 'length')
-bashio::log.info "Cámaras configuradas: ${CAMERA_COUNT}"
+bashio::log.info "Cámaras -> Tuya: ${TUYA_COUNT} | Meari: ${MEARI_COUNT}"
 
 export TUYA_BASE_URL TUYA_CLIENT_ID TUYA_CLIENT_SECRET
 export TUYA_CAMERAS="$CAMERAS_JSON"
@@ -31,41 +31,32 @@ export RTSP_PORT="8554"
 bashio::log.info "Iniciando mediamtx..."
 /usr/local/bin/mediamtx /opt/mediamtx.yml &
 MTX_PID=$!
+sleep 2   # deja que mediamtx levante el listener antes de publicar
 
-# Le da un momento a mediamtx para levantar el listener antes de que
-# ffmpeg intente publicar contra él.
-sleep 2
+PIDS="$MTX_PID"
 
-bashio::log.info "Iniciando tuya_stream_proxy..."
-python3 /opt/tuya_stream_proxy.py &
-PROXY_PID=$!
+# --- Fuente Tuya (solo si hay cámaras Tuya) ---
+if [ "$TUYA_COUNT" != "0" ]; then
+    bashio::log.info "Iniciando tuya_stream_proxy..."
+    python3 /opt/tuya_stream_proxy.py &
+    PIDS="$PIDS $!"
+fi
 
-_term() {
-    bashio::log.info "Deteniendo add-on..."
-    kill -TERM "$MTX_PID" "$PROXY_PID" 2>/dev/null || true
-}
-trap _term SIGTERM SIGINT
-
-wait -n "$MTX_PID" "$PROXY_PID"
-EXIT_CODE=$?
-_term
-exit $EXIT_CODE
-
-# Le da un momento a mediamtx para levantar el listener antes de que
-# ffmpeg intente publicar contra él.
-sleep 2
-
-bashio::log.info "Iniciando tuya_stream_proxy..."
-python3 /opt/tuya_stream_proxy.py &
-PROXY_PID=$!
+# --- Fuente Meari/P2P (solo si hay cámaras Meari) ---
+if [ "$MEARI_COUNT" != "0" ]; then
+    bashio::log.info "Iniciando meari_launcher..."
+    /opt/meari_launcher.sh &
+    PIDS="$PIDS $!"
+fi
 
 _term() {
     bashio::log.info "Deteniendo add-on..."
-    kill -TERM "$MTX_PID" "$PROXY_PID" 2>/dev/null || true
+    kill -TERM $PIDS 2>/dev/null || true
 }
 trap _term SIGTERM SIGINT
 
-wait -n "$MTX_PID" "$PROXY_PID"
+# Si cualquiera de los procesos muere, se cierra el add-on (HA lo reinicia).
+wait -n $PIDS
 EXIT_CODE=$?
 _term
 exit $EXIT_CODE

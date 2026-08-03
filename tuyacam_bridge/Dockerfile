@@ -27,10 +27,17 @@ RUN set -e; \
     rm /tmp/mediamtx.tar.gz; \
     chmod +x /usr/local/bin/mediamtx
 
+# --- Soporte Meari (P2P) ------------------------------------------------
+# El cliente Meari es arm64. En amd64 corre bajo qemu-user; en aarch64,
+# nativo (usando el loader Bionic del sysroot mínimo empaquetado).
+RUN if [ "${BUILD_ARCH}" = "amd64" ]; then apk add --no-cache qemu-aarch64; fi
+COPY meari/ /opt/meari/
+COPY meari_launcher.sh /opt/meari_launcher.sh
+
 # --- Archivos del add-on -------------------------------------------------
 COPY tuya_stream_proxy.py /opt/tuya_stream_proxy.py
 COPY mediamtx.yml /opt/mediamtx.yml
 COPY run.sh /
-RUN chmod a+x /run.sh
+RUN chmod a+x /run.sh /opt/meari_launcher.sh /opt/meari/meari_client
 
 CMD [ "/run.sh" ]

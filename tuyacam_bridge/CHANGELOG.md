@@ -1,3 +1,15 @@
+## 3.3.0
+
+- **Nuevo: cámaras Meari / CloudEdge** (ZUMIMALL, Arenti, Cloudedge, etc.) vía
+  P2P (PPCS/Kalay). Se publican en el **mismo mediamtx** que las Tuya, así que
+  HA/Frigate/VLC/Alexa las consumen igual (`rtsp://<host>:8554/<name>`).
+- Nueva lista de configuración `meari_cameras` (con `hostkey`/`initstring`
+  protegidos como password).
+- **Tuya y Meari ahora son opcionales por separado**: puedes correr solo Tuya,
+  solo Meari, o ambas.
+- El cliente Meari corre bajo `qemu-aarch64` en hosts amd64 y nativo en aarch64,
+  con auto-reconexión por cámara. Reutiliza el mediamtx, WebRTC y métricas del bridge.
+
 # Changelog — TuyaCam RTSP Bridge
 
 ## 3.2.2
