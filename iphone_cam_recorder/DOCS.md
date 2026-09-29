@@ -11,6 +11,7 @@ cambia, el add-on usa la nueva. **Solo intenta grabar cuando el trigger cambia a
 |---|---|
 | `devices[].name` | Carpeta de grabaciones (letras, números, `_`, `-`). |
 | `devices[].entity` | Entidad con el atributo `stream_url`. |
+| `devices[].fallback_url` | URL completa fija por VPN (p. ej. `http://100.64.0.5:8090/camera`). Úsala si el sensor no publica URL fuera del WiFi. |
 | `devices[].fallback_host` | IP/hostname alternativo del iPhone (VPN) para grabar fuera de la LAN. |
 | `devices[].trigger_entity` | Sensor de la app Companion que cambia al abrirla (default `sensor.anna_last_update_trigger`; verifica el ID exacto en HA). |
 | `devices[].trigger_state` | Valor que dispara el intento (default `launch`). |

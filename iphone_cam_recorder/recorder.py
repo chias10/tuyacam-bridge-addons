@@ -121,12 +121,13 @@ def with_host(url, host):
 def candidates(dev):
     with lock:
         url = urls.get(dev["entity"])
-    if not url:
-        return []
-    out = [url]
+    out = [url] if url else []
     fb = (dev.get("fallback_host") or "").strip()
-    if fb:
+    if fb and url:
         out.append(with_host(url, fb))
+    fu = (dev.get("fallback_url") or "").strip()
+    if fu:
+        out.append(fu)
     return out
 
 

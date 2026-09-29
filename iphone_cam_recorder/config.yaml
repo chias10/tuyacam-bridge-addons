@@ -1,5 +1,5 @@
 name: "iPhone Cam Auto Recorder"
-version: "1.2.0"
+version: "1.3.0"
 slug: "iphone_cam_recorder"
 description: >-
   Escucha el sensor de Home Assistant que publica la URL de la cámara del
@@ -29,6 +29,7 @@ options:
       trigger_entity: "sensor.anna_last_update_trigger"
       trigger_state: "launch"
       fallback_host: ""
+      fallback_url: ""
 schema:
   attempt_seconds: "int(5,120)"
   segment_minutes: "int(1,120)"
@@ -41,3 +42,4 @@ schema:
       trigger_entity: "str"
       trigger_state: "str?"
       fallback_host: "str?"
+      fallback_url: "str?"

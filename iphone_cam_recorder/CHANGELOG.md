@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.0
+- `fallback_url`: URL fija (VPN) que no depende del sensor.
+
 ## 1.2.0
 - Graba solo tras el trigger `launch` (ventana de `attempt_seconds`); si no hay video, espera al siguiente launch.
 
