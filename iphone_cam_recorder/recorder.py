@@ -1,29 +1,35 @@
 #!/usr/bin/env python3
 """iPhone Cam Auto Recorder.
 
-Localiza dispositivos por MAC (la IP cambia por DHCP), comprueba si su URL
-de cámara emite video y, si es así, graba con ffmpeg en segmentos.
+Escucha (websocket) los cambios de un sensor de Home Assistant que publica
+la URL de la cámara del iPhone; cuando la URL emite video, graba con ffmpeg.
+Si la URL no es alcanzable (iPhone fuera de la LAN), prueba la misma URL con
+`fallback_host` (IP/hostname VPN, p. ej. Tailscale).
 """
+import asyncio
 import json
 import os
 import re
-import shutil
 import subprocess
 import threading
 import time
 import urllib.request
 from datetime import datetime
+from urllib.parse import urlsplit, urlunsplit
+
+import aiohttp
 
 OPTIONS = json.load(open("/data/options.json"))
-SCAN_INTERVAL = int(OPTIONS.get("scan_interval", 15))
+RETRY = int(OPTIONS.get("scan_interval", 15))
 SEGMENT_SECONDS = int(OPTIONS.get("segment_minutes", 10)) * 60
 RETENTION_DAYS = int(OPTIONS.get("retention_days", 14))
 REC_DIR = OPTIONS.get("recordings_dir") or "/media/iphone_recordings"
 NOTIFY = (OPTIONS.get("notify_service") or "").strip()
-IFACE = (OPTIONS.get("interface") or "").strip()
+TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
+API = "http://supervisor/core/api"
+WS = "ws://supervisor/core/websocket"
 
-MAC_RE = re.compile(r"([0-9a-f]{2}(?::[0-9a-f]{2}){5})", re.I)
-ip_by_mac = {}          # mac -> (ip, timestamp)
+urls = {}                # entity_id -> última URL conocida
 lock = threading.Lock()
 
 
@@ -31,21 +37,36 @@ def log(msg):
     print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}", flush=True)
 
 
-def norm_mac(mac):
-    return mac.strip().lower().replace("-", ":")
+def extract_url(state):
+    if not state:
+        return None
+    attrs = state.get("attributes") or {}
+    url = attrs.get("stream_url") or attrs.get("Stream URL")
+    if not url and str(state.get("state", "")).startswith(("http", "rtsp")):
+        url = state["state"]
+    return url or None
+
+
+def set_url(entity, state):
+    url = extract_url(state)
+    if not url:
+        return
+    with lock:
+        if urls.get(entity) != url:
+            log(f"[{entity}] URL: {url}")
+        urls[entity] = url
 
 
 def notify(msg):
-    token = os.environ.get("SUPERVISOR_TOKEN")
-    if not (NOTIFY and token):
+    if not (NOTIFY and TOKEN):
         return
     domain, _, svc = NOTIFY.partition(".")
     if not svc:
         domain, svc = "notify", NOTIFY
     req = urllib.request.Request(
-        f"http://supervisor/core/api/services/{domain}/{svc}",
+        f"{API}/services/{domain}/{svc}",
         data=json.dumps({"message": msg, "title": "iPhone Cam"}).encode(),
-        headers={"Authorization": f"Bearer {token}",
+        headers={"Authorization": f"Bearer {TOKEN}",
                  "Content-Type": "application/json"})
     try:
         urllib.request.urlopen(req, timeout=10).read()
@@ -53,62 +74,68 @@ def notify(msg):
         log(f"notify falló: {e}")
 
 
-def scan_network():
-    """Actualiza ip_by_mac con arp-scan y la tabla de vecinos."""
-    found = {}
-    cmd = ["arp-scan", "-q", "-r", "3"]
-    cmd += ["-I", IFACE] if IFACE else ["-l"]
-    try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=60).stdout
-        for line in out.splitlines():
-            parts = line.split()
-            if len(parts) >= 2 and MAC_RE.fullmatch(parts[1]):
-                found[norm_mac(parts[1])] = parts[0]
-    except Exception as e:
-        log(f"arp-scan falló: {e}")
-    try:
-        out = subprocess.run(["ip", "neigh"], capture_output=True, text=True,
-                             timeout=10).stdout
-        for line in out.splitlines():
-            m = MAC_RE.search(line)
-            if m and re.search(r"REACHABLE|DELAY|PROBE", line):
-                found.setdefault(norm_mac(m.group(1)), line.split()[0])
-    except Exception:
-        pass
-    now = time.time()
-    with lock:
-        for mac, ip in found.items():
-            ip_by_mac[mac] = (ip, now)
-
-
-def scanner():
+async def listen(entities):
+    """Suscripción a state_changed con reconexión."""
     while True:
-        scan_network()
-        time.sleep(SCAN_INTERVAL)
+        try:
+            async with aiohttp.ClientSession() as s:
+                # estado inicial
+                for e in entities:
+                    async with s.get(f"{API}/states/{e}", headers={
+                            "Authorization": f"Bearer {TOKEN}"}) as r:
+                        if r.status == 200:
+                            set_url(e, await r.json())
+                async with s.ws_connect(WS, heartbeat=30) as ws:
+                    await ws.receive_json()                       # auth_required
+                    await ws.send_json({"type": "auth", "access_token": TOKEN})
+                    if (await ws.receive_json()).get("type") != "auth_ok":
+                        raise RuntimeError("auth websocket falló")
+                    await ws.send_json({"id": 1, "type": "subscribe_events",
+                                        "event_type": "state_changed"})
+                    log("escuchando eventos de Home Assistant")
+                    async for msg in ws:
+                        if msg.type != aiohttp.WSMsgType.TEXT:
+                            break
+                        ev = json.loads(msg.data)
+                        data = (ev.get("event") or {}).get("data") or {}
+                        if data.get("entity_id") in entities:
+                            set_url(data["entity_id"], data.get("new_state"))
+        except Exception as e:
+            log(f"websocket: {e}; reintentando en 10s")
+        await asyncio.sleep(10)
 
 
-def current_ip(mac):
-    # Solo se acepta si el escaneo reciente la vio (evita IPs viejas)
+def with_host(url, host):
+    p = urlsplit(url)
+    port = f":{p.port}" if p.port else ""
+    return urlunsplit((p.scheme, host + port, p.path, p.query, p.fragment))
+
+
+def candidates(dev):
     with lock:
-        entry = ip_by_mac.get(mac)
-    if entry and time.time() - entry[1] <= SCAN_INTERVAL * 3 + 10:
-        return entry[0]
-    return None
+        url = urls.get(dev["entity"])
+    if not url:
+        return []
+    out = [url]
+    fb = (dev.get("fallback_host") or "").strip()
+    if fb:
+        out.append(with_host(url, fb))
+    return out
 
 
 def has_video(url):
     try:
         p = subprocess.run(
-            ["ffprobe", "-v", "error", "-rw_timeout", "8000000",
+            ["ffprobe", "-v", "error", "-rw_timeout", "6000000",
              "-select_streams", "v:0", "-show_entries", "stream=codec_type",
              "-of", "csv=p=0", url],
-            capture_output=True, text=True, timeout=20)
+            capture_output=True, text=True, timeout=15)
         return "video" in p.stdout
     except Exception:
         return False
 
 
-def record(dev, url, ip):
+def record(dev, url):
     out_dir = os.path.join(REC_DIR, dev["name"])
     os.makedirs(out_dir, exist_ok=True)
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-rw_timeout", "10000000"]
@@ -119,14 +146,12 @@ def record(dev, url, ip):
             "-reset_timestamps", "1", "-strftime", "1",
             os.path.join(out_dir, "%Y%m%d_%H%M%S.mkv")]
     log(f"[{dev['name']}] grabando {url}")
-    notify(f"{dev['name']}: grabando ({ip})")
+    notify(f"{dev['name']}: grabando")
     proc = subprocess.Popen(cmd)
-    mac = norm_mac(dev["mac"])
     while proc.poll() is None:
-        time.sleep(5)
-        new_ip = current_ip(mac)
-        if new_ip and new_ip != ip:   # la IP cambió: reiniciar con la nueva
-            log(f"[{dev['name']}] IP cambió {ip} -> {new_ip}, reiniciando")
+        time.sleep(3)
+        if url not in candidates(dev):   # el sensor publicó otra URL/IP
+            log(f"[{dev['name']}] URL cambió, reiniciando")
             proc.terminate()
             break
     try:
@@ -137,28 +162,25 @@ def record(dev, url, ip):
 
 
 def device_loop(dev):
-    mac = norm_mac(dev["mac"])
-    last_state = None
+    last = None
     while True:
-        ip = current_ip(mac)
-        if not ip:
-            if last_state != "offline":
-                log(f"[{dev['name']}] fuera de la red")
-                last_state = "offline"
-            time.sleep(SCAN_INTERVAL)
+        cands = candidates(dev)
+        if not cands:
+            if last != "nourl":
+                log(f"[{dev['name']}] sin URL en {dev['entity']}")
+                last = "nourl"
+            time.sleep(RETRY)
             continue
-        if last_state == "offline" or last_state is None:
-            log(f"[{dev['name']}] conectado con IP {ip}")
-        url = dev["stream_url"].replace("{ip}", ip)
-        if has_video(url):
-            last_state = "recording"
-            record(dev, url, ip)
+        ok = next((u for u in cands if has_video(u)), None)
+        if ok:
+            last = "rec"
+            record(dev, ok)
             time.sleep(3)
         else:
-            if last_state != "no_video":
-                log(f"[{dev['name']}] en red ({ip}) pero sin video en {url}")
-                last_state = "no_video"
-            time.sleep(SCAN_INTERVAL)
+            if last != "wait":
+                log(f"[{dev['name']}] esperando video en {cands}")
+                last = "wait"
+            time.sleep(RETRY)
 
 
 def cleaner():
@@ -178,17 +200,12 @@ def cleaner():
 def main():
     os.makedirs(REC_DIR, exist_ok=True)
     devices = OPTIONS.get("devices", [])
-    if not devices:
-        log("No hay dispositivos configurados")
+    if not devices or not TOKEN:
+        log("Faltan dispositivos o SUPERVISOR_TOKEN")
         return
-    if not shutil.which("arp-scan"):
-        log("arp-scan no disponible")
-        return
-    scan_network()
-    for target in [scanner, cleaner] + [lambda d=d: device_loop(d) for d in devices]:
-        threading.Thread(target=target, daemon=True).start()
-    while True:
-        time.sleep(3600)
+    for t in [cleaner] + [lambda d=d: device_loop(d) for d in devices]:
+        threading.Thread(target=t, daemon=True).start()
+    asyncio.run(listen({d["entity"] for d in devices}))
 
 
 if __name__ == "__main__":
