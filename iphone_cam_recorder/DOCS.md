@@ -11,8 +11,6 @@ cambia, el add-on usa la nueva. **Solo intenta grabar cuando el trigger cambia a
 |---|---|
 | `devices[].name` | Carpeta de grabaciones (letras, números, `_`, `-`). |
 | `devices[].entity` | Entidad con el atributo `stream_url`. |
-| `devices[].fallback_url` | URL completa fija por VPN (p. ej. `http://100.64.0.5:8090/camera`). Úsala si el sensor no publica URL fuera del WiFi. |
-| `devices[].fallback_host` | IP/hostname alternativo del iPhone (VPN) para grabar fuera de la LAN. |
 | `devices[].trigger_entity` | Sensor de la app Companion que cambia al abrirla (default `sensor.anna_last_update_trigger`; verifica el ID exacto en HA). |
 | `devices[].trigger_state` | Valor que dispara el intento (default `launch`). |
 | `attempt_seconds` | Segundos que intenta obtener video tras cada launch (15). Si no hay, espera al siguiente launch. |
@@ -20,22 +18,10 @@ cambia, el add-on usa la nueva. **Solo intenta grabar cuando el trigger cambia a
 | `retention_days` | Borrado automático (0 = nunca). |
 | `notify_service` | Opcional, p. ej. `notify.mobile_app_mi_telefono`. |
 
-## Grabar fuera de la LAN
+## Alcance
 
-El sensor reporta la IP WiFi del iPhone (192.168.x.x). Fuera de casa esa IP
-no existe para el servidor y el iPhone en datos móviles no acepta conexiones
-entrantes, así que el add-on **no puede** alcanzarlo sin un túnel. Solución:
-
-1. Instala **Tailscale** en el iPhone y en Home Assistant (add-on Tailscale
-   con *userspace networking desactivado*, para que los add-ons puedan
-   enrutar hacia la red tailnet).
-2. Pon la IP Tailscale del iPhone (100.x.y.z) o su nombre MagicDNS en
-   `fallback_host`. Se conserva puerto y ruta de la URL original
-   (`http://100.x.y.z:8090/camera`).
-3. La app del iPhone debe seguir sirviendo video en ese puerto.
-
-WireGuard u otra VPN funcionan igual. Con la VPN activa el add-on prueba
-primero la URL del sensor y luego el fallback.
+Solo graba con el iPhone conectado a la misma LAN que Home Assistant
+(la URL del sensor es una IP local). Fuera de la LAN no se intenta.
 
 ## Permisos
 

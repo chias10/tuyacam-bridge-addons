@@ -1,11 +1,11 @@
 name: "iPhone Cam Auto Recorder"
-version: "1.3.0"
+version: "1.4.0"
 slug: "iphone_cam_recorder"
 description: >-
   Escucha el sensor de Home Assistant que publica la URL de la cámara del
   iPhone (la IP cambia). Cada vez que la app se abre (trigger "launch")
   intenta grabar durante unos segundos; si no hay video, espera al
-  siguiente launch. Soporta VPN/Tailscale con fallback_host.
+  siguiente launch. Solo funciona con el iPhone en la misma LAN.
 url: "https://github.com/chias10/tuyacam-bridge-addons/tree/main/iphone_cam_recorder"
 arch:
   - amd64
@@ -28,8 +28,6 @@ options:
       entity: "sensor.anna_camera_stream"
       trigger_entity: "sensor.anna_last_update_trigger"
       trigger_state: "launch"
-      fallback_host: ""
-      fallback_url: ""
 schema:
   attempt_seconds: "int(5,120)"
   segment_minutes: "int(1,120)"
@@ -41,5 +39,3 @@ schema:
       entity: "str"
       trigger_entity: "str"
       trigger_state: "str?"
-      fallback_host: "str?"
-      fallback_url: "str?"

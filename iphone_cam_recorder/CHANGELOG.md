@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.0
+- Se elimina el soporte fuera de LAN (`fallback_host`/`fallback_url`); solo graba en la misma red.
+
 ## 1.3.0
 - `fallback_url`: URL fija (VPN) que no depende del sensor.
 

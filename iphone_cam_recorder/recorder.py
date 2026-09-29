@@ -3,8 +3,6 @@
 
 Escucha (websocket) el sensor de trigger de la app (launch) y el sensor con
 la URL de la cámara; en cada launch intenta grabar ATTEMPT segundos.
-Si la URL no es alcanzable (iPhone fuera de la LAN), prueba la misma URL con
-`fallback_host` (IP/hostname VPN, p. ej. Tailscale).
 """
 import asyncio
 import json
@@ -15,7 +13,6 @@ import threading
 import time
 import urllib.request
 from datetime import datetime
-from urllib.parse import urlsplit, urlunsplit
 
 import aiohttp
 
@@ -112,23 +109,10 @@ async def listen(entities):
         await asyncio.sleep(10)
 
 
-def with_host(url, host):
-    p = urlsplit(url)
-    port = f":{p.port}" if p.port else ""
-    return urlunsplit((p.scheme, host + port, p.path, p.query, p.fragment))
-
-
 def candidates(dev):
     with lock:
         url = urls.get(dev["entity"])
-    out = [url] if url else []
-    fb = (dev.get("fallback_host") or "").strip()
-    if fb and url:
-        out.append(with_host(url, fb))
-    fu = (dev.get("fallback_url") or "").strip()
-    if fu:
-        out.append(fu)
-    return out
+    return [url] if url else []
 
 
 def has_video(url):
