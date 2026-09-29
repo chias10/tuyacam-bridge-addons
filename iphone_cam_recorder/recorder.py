@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """iPhone Cam Auto Recorder.
 
-Escucha (websocket) los cambios de un sensor de Home Assistant que publica
-la URL de la cámara del iPhone; cuando la URL emite video, graba con ffmpeg.
+Escucha (websocket) el sensor de trigger de la app (launch) y el sensor con
+la URL de la cámara; en cada launch intenta grabar ATTEMPT segundos.
 Si la URL no es alcanzable (iPhone fuera de la LAN), prueba la misma URL con
 `fallback_host` (IP/hostname VPN, p. ej. Tailscale).
 """
@@ -20,7 +20,7 @@ from urllib.parse import urlsplit, urlunsplit
 import aiohttp
 
 OPTIONS = json.load(open("/data/options.json"))
-RETRY = int(OPTIONS.get("scan_interval", 15))
+ATTEMPT = int(OPTIONS.get("attempt_seconds", 15))
 SEGMENT_SECONDS = int(OPTIONS.get("segment_minutes", 10)) * 60
 RETENTION_DAYS = int(OPTIONS.get("retention_days", 14))
 REC_DIR = OPTIONS.get("recordings_dir") or "/media/iphone_recordings"
@@ -30,6 +30,7 @@ API = "http://supervisor/core/api"
 WS = "ws://supervisor/core/websocket"
 
 urls = {}                # entity_id -> última URL conocida
+launch_events = {}       # trigger_entity -> [(dev, threading.Event)]
 lock = threading.Lock()
 
 
@@ -98,8 +99,14 @@ async def listen(entities):
                             break
                         ev = json.loads(msg.data)
                         data = (ev.get("event") or {}).get("data") or {}
-                        if data.get("entity_id") in entities:
-                            set_url(data["entity_id"], data.get("new_state"))
+                        eid = data.get("entity_id")
+                        if eid in entities:
+                            set_url(eid, data.get("new_state"))
+                        for dev, evt in launch_events.get(eid, []):
+                            st = (data.get("new_state") or {}).get("state")
+                            if st == (dev.get("trigger_state") or "launch"):
+                                log(f"[{dev['name']}] trigger '{st}' detectado")
+                                evt.set()
         except Exception as e:
             log(f"websocket: {e}; reintentando en 10s")
         await asyncio.sleep(10)
@@ -126,10 +133,10 @@ def candidates(dev):
 def has_video(url):
     try:
         p = subprocess.run(
-            ["ffprobe", "-v", "error", "-rw_timeout", "6000000",
+            ["ffprobe", "-v", "error", "-rw_timeout", "4000000",
              "-select_streams", "v:0", "-show_entries", "stream=codec_type",
              "-of", "csv=p=0", url],
-            capture_output=True, text=True, timeout=15)
+            capture_output=True, text=True, timeout=8)
         return "video" in p.stdout
     except Exception:
         return False
@@ -148,39 +155,41 @@ def record(dev, url):
     log(f"[{dev['name']}] grabando {url}")
     notify(f"{dev['name']}: grabando")
     proc = subprocess.Popen(cmd)
+    finished = True
     while proc.poll() is None:
         time.sleep(3)
         if url not in candidates(dev):   # el sensor publicó otra URL/IP
             log(f"[{dev['name']}] URL cambió, reiniciando")
             proc.terminate()
+            finished = False
             break
     try:
-        proc.wait(timeout=15)
+        proc.wait(timeout=8)
     except subprocess.TimeoutExpired:
         proc.kill()
     log(f"[{dev['name']}] grabación terminada")
+    return finished
 
 
-def device_loop(dev):
-    last = None
+def device_loop(dev, evt):
+    """Espera un launch; intenta obtener video ATTEMPT segundos; graba o se rinde."""
     while True:
-        cands = candidates(dev)
-        if not cands:
-            if last != "nourl":
-                log(f"[{dev['name']}] sin URL en {dev['entity']}")
-                last = "nourl"
-            time.sleep(RETRY)
+        evt.wait()
+        evt.clear()
+        deadline = time.time() + ATTEMPT
+        log(f"[{dev['name']}] launch: intentando video ({ATTEMPT}s)")
+        ok = None
+        while time.time() < deadline and not ok:
+            ok = next((u for u in candidates(dev) if has_video(u)), None)
+            if not ok:
+                time.sleep(2)
+        if not ok:
+            log(f"[{dev['name']}] sin video en {ATTEMPT}s, esperando siguiente launch")
             continue
-        ok = next((u for u in cands if has_video(u)), None)
-        if ok:
-            last = "rec"
-            record(dev, ok)
-            time.sleep(3)
+        if not record(dev, ok):
+            evt.set()      # cambió la URL: reintentar con la nueva
         else:
-            if last != "wait":
-                log(f"[{dev['name']}] esperando video en {cands}")
-                last = "wait"
-            time.sleep(RETRY)
+            log(f"[{dev['name']}] esperando siguiente launch")
 
 
 def cleaner():
@@ -203,9 +212,13 @@ def main():
     if not devices or not TOKEN:
         log("Faltan dispositivos o SUPERVISOR_TOKEN")
         return
-    for t in [cleaner] + [lambda d=d: device_loop(d) for d in devices]:
-        threading.Thread(target=t, daemon=True).start()
-    asyncio.run(listen({d["entity"] for d in devices}))
+    threading.Thread(target=cleaner, daemon=True).start()
+    for d in devices:
+        evt = threading.Event()
+        launch_events.setdefault(d["trigger_entity"], []).append((d, evt))
+        threading.Thread(target=device_loop, args=(d, evt), daemon=True).start()
+    watch = {d["entity"] for d in devices} | set(launch_events)
+    asyncio.run(listen(watch))
 
 
 if __name__ == "__main__":
