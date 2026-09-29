@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.5.0
+- Soporte explícito MJPEG/mpjpeg por HTTP (timestamps por reloj real) y opción `transcode_h264`.
+
 ## 1.4.1
 - El nombre del dispositivo acepta espacios (se convierten en `_` para la carpeta).
 

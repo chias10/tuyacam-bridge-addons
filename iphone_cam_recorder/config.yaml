@@ -1,5 +1,5 @@
 name: "iPhone Cam Auto Recorder"
-version: "1.4.1"
+version: "1.5.0"
 slug: "iphone_cam_recorder"
 description: >-
   Escucha el sensor de Home Assistant que publica la URL de la cámara del
@@ -21,6 +21,7 @@ options:
   attempt_seconds: 15
   segment_minutes: 10
   retention_days: 14
+  transcode_h264: false
   recordings_dir: "/media/iphone_recordings"
   notify_service: ""
   devices:
@@ -32,6 +33,7 @@ schema:
   attempt_seconds: "int(5,120)"
   segment_minutes: "int(1,120)"
   retention_days: "int(0,3650)"
+  transcode_h264: "bool"
   recordings_dir: "str"
   notify_service: "str?"
   devices:

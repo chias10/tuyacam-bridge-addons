@@ -20,6 +20,7 @@ OPTIONS = json.load(open("/data/options.json"))
 ATTEMPT = int(OPTIONS.get("attempt_seconds", 15))
 SEGMENT_SECONDS = int(OPTIONS.get("segment_minutes", 10)) * 60
 RETENTION_DAYS = int(OPTIONS.get("retention_days", 14))
+TRANSCODE = bool(OPTIONS.get("transcode_h264", False))
 REC_DIR = OPTIONS.get("recordings_dir") or "/media/iphone_recordings"
 NOTIFY = (OPTIONS.get("notify_service") or "").strip()
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
@@ -133,7 +134,13 @@ def record(dev, url):
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-rw_timeout", "10000000"]
     if url.startswith("rtsp"):
         cmd += ["-rtsp_transport", "tcp"]
-    cmd += ["-i", url, "-map", "0:v:0", "-map", "0:a?", "-c", "copy",
+    else:
+        # MJPEG por HTTP (mpjpeg) no trae timestamps: usar el reloj real
+        cmd += ["-use_wallclock_as_timestamps", "1"]
+    codec = (["-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+              "-pix_fmt", "yuv420p", "-g", "50", "-an"]
+             if TRANSCODE else ["-c", "copy"])
+    cmd += ["-i", url, "-map", "0:v:0"] + ([] if TRANSCODE else ["-map", "0:a?"]) + codec + [
             "-f", "segment", "-segment_time", str(SEGMENT_SECONDS),
             "-reset_timestamps", "1", "-strftime", "1",
             os.path.join(out_dir, "%Y%m%d_%H%M%S.mkv")]

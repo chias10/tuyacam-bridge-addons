@@ -14,6 +14,7 @@ cambia, el add-on usa la nueva. **Solo intenta grabar cuando el trigger cambia a
 | `devices[].trigger_entity` | Sensor de la app Companion que cambia al abrirla (default `sensor.anna_last_update_trigger`; verifica el ID exacto en HA). |
 | `devices[].trigger_state` | Valor que dispara el intento (default `launch`). |
 | `attempt_seconds` | Segundos que intenta obtener video tras cada launch (15). Si no hay, espera al siguiente launch. |
+| `transcode_h264` | El stream de la app es MJPEG (pesado, ~GB/hora). `true` lo convierte a H.264 (~10x menos espacio) a costa de CPU. Default `false` (copia directa). |
 | `segment_minutes` | Duración de cada archivo. |
 | `retention_days` | Borrado automático (0 = nunca). |
 | `notify_service` | Opcional, p. ej. `notify.mobile_app_mi_telefono`. |
