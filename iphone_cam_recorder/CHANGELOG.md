@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1
+- El trigger se compara sin distinguir mayúsculas (iOS reporta "Launch").
+- Más logs: cada cambio del trigger y el motivo si no hay video.
+
 ## 1.5.0
 - Soporte explícito MJPEG/mpjpeg por HTTP (timestamps por reloj real) y opción `transcode_h264`.
 

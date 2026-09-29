@@ -1,5 +1,5 @@
 name: "iPhone Cam Auto Recorder"
-version: "1.5.0"
+version: "1.5.1"
 slug: "iphone_cam_recorder"
 description: >-
   Escucha el sensor de Home Assistant que publica la URL de la cámara del

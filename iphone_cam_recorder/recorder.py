@@ -102,7 +102,9 @@ async def listen(entities):
                             set_url(eid, data.get("new_state"))
                         for dev, evt in launch_events.get(eid, []):
                             st = (data.get("new_state") or {}).get("state")
-                            if st == (dev.get("trigger_state") or "launch"):
+                            log(f"[{dev['name']}] {eid} -> '{st}'")
+                            want = (dev.get("trigger_state") or "launch").strip().lower()
+                            if str(st).strip().lower() == want:
                                 log(f"[{dev['name']}] trigger '{st}' detectado")
                                 evt.set()
         except Exception as e:
@@ -116,6 +118,9 @@ def candidates(dev):
     return [url] if url else []
 
 
+LAST_ERR = {}
+
+
 def has_video(url):
     try:
         p = subprocess.run(
@@ -123,9 +128,12 @@ def has_video(url):
              "-select_streams", "v:0", "-show_entries", "stream=codec_type",
              "-of", "csv=p=0", url],
             capture_output=True, text=True, timeout=8)
-        return "video" in p.stdout
-    except Exception:
-        return False
+        if "video" in p.stdout:
+            return True
+        LAST_ERR[url] = (p.stderr.strip().splitlines() or ["sin video"])[-1]
+    except Exception as e:
+        LAST_ERR[url] = str(e) or type(e).__name__
+    return False
 
 
 def record(dev, url):
@@ -176,7 +184,9 @@ def device_loop(dev, evt):
             if not ok:
                 time.sleep(2)
         if not ok:
-            log(f"[{dev['name']}] sin video en {ATTEMPT}s, esperando siguiente launch")
+            cands = candidates(dev)
+            why = LAST_ERR.get(cands[0]) if cands else "el sensor no tiene stream_url"
+            log(f"[{dev['name']}] sin video en {ATTEMPT}s ({cands or 'sin URL'}: {why}), esperando siguiente launch")
             continue
         if not record(dev, ok):
             evt.set()      # cambió la URL: reintentar con la nueva
