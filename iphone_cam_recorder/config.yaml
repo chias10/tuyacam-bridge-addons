@@ -1,0 +1,39 @@
+name: "iPhone Cam Auto Recorder"
+version: "1.0.0"
+slug: "iphone_cam_recorder"
+description: >-
+  Detecta cuando un iPhone (u otro dispositivo) se conecta a tu WiFi,
+  localiza su IP actual por MAC (aunque cambie), comprueba si su URL de
+  cámara está emitiendo video y lo graba automáticamente.
+url: "https://github.com/chias10/tuyacam-bridge-addons/tree/main/iphone_cam_recorder"
+arch:
+  - amd64
+  - aarch64
+startup: services
+boot: auto
+init: false
+host_network: true
+homeassistant_api: true
+map:
+  - media:rw
+options:
+  scan_interval: 15
+  segment_minutes: 10
+  retention_days: 14
+  recordings_dir: "/media/iphone_recordings"
+  notify_service: ""
+  devices:
+    - name: "iphone_aziel"
+      mac: "AA:BB:CC:DD:EE:FF"
+      stream_url: "http://{ip}:8080/video"
+schema:
+  scan_interval: "int(5,600)"
+  segment_minutes: "int(1,120)"
+  retention_days: "int(0,3650)"
+  recordings_dir: "str"
+  notify_service: "str?"
+  interface: "str?"
+  devices:
+    - name: "match(^[A-Za-z0-9_-]+$)"
+      mac: "match(^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$)"
+      stream_url: "str"
