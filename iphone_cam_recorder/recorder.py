@@ -194,6 +194,8 @@ def cleaner():
 def main():
     os.makedirs(REC_DIR, exist_ok=True)
     devices = OPTIONS.get("devices", [])
+    for d in devices:   # nombre seguro para carpeta (espacios -> _)
+        d["name"] = re.sub(r"[^A-Za-z0-9_-]+", "_", d["name"].strip()) or "iphone"
     if not devices or not TOKEN:
         log("Faltan dispositivos o SUPERVISOR_TOKEN")
         return

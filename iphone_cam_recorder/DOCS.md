@@ -9,7 +9,7 @@ cambia, el add-on usa la nueva. **Solo intenta grabar cuando el trigger cambia a
 
 | Opción | Descripción |
 |---|---|
-| `devices[].name` | Carpeta de grabaciones (letras, números, `_`, `-`). |
+| `devices[].name` | Carpeta de grabaciones (los espacios y símbolos se convierten en `_`). |
 | `devices[].entity` | Entidad con el atributo `stream_url`. |
 | `devices[].trigger_entity` | Sensor de la app Companion que cambia al abrirla (default `sensor.anna_last_update_trigger`; verifica el ID exacto en HA). |
 | `devices[].trigger_state` | Valor que dispara el intento (default `launch`). |

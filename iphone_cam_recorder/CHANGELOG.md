@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.1
+- El nombre del dispositivo acepta espacios (se convierten en `_` para la carpeta).
+
 ## 1.4.0
 - Se elimina el soporte fuera de LAN (`fallback_host`/`fallback_url`); solo graba en la misma red.
 

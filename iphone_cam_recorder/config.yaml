@@ -1,5 +1,5 @@
 name: "iPhone Cam Auto Recorder"
-version: "1.4.0"
+version: "1.4.1"
 slug: "iphone_cam_recorder"
 description: >-
   Escucha el sensor de Home Assistant que publica la URL de la cámara del
@@ -35,7 +35,7 @@ schema:
   recordings_dir: "str"
   notify_service: "str?"
   devices:
-    - name: "match(^[A-Za-z0-9_-]+$)"
+    - name: "str"
       entity: "str"
       trigger_entity: "str"
       trigger_state: "str?"
